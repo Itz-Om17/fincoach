@@ -1,26 +1,37 @@
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, TrendingUp, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
-interface InsightCardProps {
+interface InsightProps {
+  title?: string;
   message: string;
-  type?: "info" | "warning" | "success";
+  type: "info" | "success" | "warning";
 }
 
-export function InsightCard({ message, type = "info" }: InsightCardProps) {
-  const styles = {
-    info: "bg-primary/5 border-primary/10 text-primary",
-    warning: "bg-warning/10 border-warning/20 text-warning-foreground",
-    success: "bg-success/10 border-success/20 text-success",
-  };
+const iconMap = {
+  info: Lightbulb,
+  success: TrendingUp,
+  warning: AlertCircle,
+};
 
+export const InsightCard = ({ title, message, type }: InsightProps) => {
+  const Icon = iconMap[type] || Lightbulb;
+  
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8 }}
+      initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className={`flex items-start gap-3 rounded-xl border p-3.5 ${styles[type]}`}
+      className="flex items-start gap-4 p-4 bg-card rounded-2xl border border-muted-foreground/5 shadow-card-sm w-full"
     >
-      <Lightbulb className="h-4 w-4 mt-0.5 shrink-0" />
-      <p className="text-sm leading-relaxed">{message}</p>
+      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+        type === "success" ? "bg-success/10 text-success" : 
+        type === "warning" ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
+      }`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        {title && <h4 className="font-display font-semibold text-sm mb-0.5">{title}</h4>}
+        <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
+      </div>
     </motion.div>
   );
-}
+};

@@ -1,34 +1,46 @@
 import { motion } from "framer-motion";
-import { Target, AlertTriangle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Target, AlertTriangle, ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useQuery } from "@tanstack/react-query";
+import { fetchGoals, fetchAIInsights } from "@/lib/api";
 
-const goals = [
-  { name: "Emergency Fund", target: 100000, current: 62000 },
-  { name: "Vacation Savings", target: 30000, current: 18500 },
-  { name: "New Laptop", target: 80000, current: 45000 },
-];
-
-interface Alert {
-  title: string;
-  message: string;
-  severity: "high" | "warning" | "safe";
+interface Goal {
+  _id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline: string;
+  category: string;
+  status: string;
 }
 
-const alerts: Alert[] = [
-  { title: "Overspending Alert", message: "You've exceeded your monthly food budget by ₹1,500.", severity: "high" },
-  { title: "Low Savings Warning", message: "Your savings rate dropped to 15% this month (target: 25%).", severity: "warning" },
-  { title: "Budget Limit Exceeded", message: "Shopping spending crossed the ₹2,500 limit you set.", severity: "high" },
-  { title: "Bills on Track", message: "All utility bills are paid on time this month.", severity: "safe" },
-  { title: "Entertainment Budget", message: "You're at 80% of your entertainment budget with 20 days left.", severity: "warning" },
-];
-
-const severityStyles = {
+const severityStyles: Record<string, any> = {
   high: { border: "border-destructive/30", bg: "bg-destructive/5", icon: ShieldAlert, iconColor: "text-destructive" },
   warning: { border: "border-warning/30", bg: "bg-warning/5", icon: AlertTriangle, iconColor: "text-warning" },
   safe: { border: "border-success/30", bg: "bg-success/5", icon: ShieldCheck, iconColor: "text-success" },
+  info: { border: "border-primary/30", bg: "bg-primary/5", icon: ShieldCheck, iconColor: "text-primary" },
+  success: { border: "border-success/30", bg: "bg-success/5", icon: ShieldCheck, iconColor: "text-success" },
 };
 
 export default function GoalsAlerts() {
+  const { data: goals, isLoading: goalsLoading } = useQuery<Goal[]>({
+    queryKey: ['goals'],
+    queryFn: fetchGoals
+  });
+
+  const { data: aiInsights, isLoading: insightsLoading } = useQuery<any[]>({
+    queryKey: ['ai-insights'],
+    queryFn: fetchAIInsights
+  });
+
+  if (goalsLoading || insightsLoading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -42,11 +54,11 @@ export default function GoalsAlerts() {
           <Target className="h-4 w-4 text-primary" /> Saving Goals
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {goals.map((goal, i) => {
-            const pct = Math.round((goal.current / goal.target) * 100);
+          {goals?.map((goal, i) => {
+            const pct = Math.round((goal.currentAmount / goal.targetAmount) * 100);
             return (
               <motion.div
-                key={goal.name}
+                key={goal._id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
@@ -54,11 +66,14 @@ export default function GoalsAlerts() {
               >
                 <p className="text-sm font-medium">{goal.name}</p>
                 <p className="font-display text-2xl font-bold mt-2">
-                  ₹{goal.current.toLocaleString()}
+                  ₹{goal.currentAmount.toLocaleString()}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  of ₹{goal.target.toLocaleString()}
-                </p>
+                <div className="flex justify-between items-end mt-0.5">
+                  <p className="text-xs text-muted-foreground">
+                    of ₹{goal.targetAmount.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-primary font-medium">{goal.deadline}</p>
+                </div>
                 <Progress value={pct} className="mt-3 h-2" />
                 <p className="text-xs text-muted-foreground mt-1.5">{pct}% completed</p>
               </motion.div>
@@ -67,14 +82,14 @@ export default function GoalsAlerts() {
         </div>
       </div>
 
-      {/* Alerts */}
+      {/* Alerts (AI Driven) */}
       <div className="space-y-3">
-        <h3 className="font-display font-semibold text-sm">Risk Alerts</h3>
-        {alerts.map((alert, i) => {
-          const s = severityStyles[alert.severity];
+        <h3 className="font-display font-semibold text-sm">AI Risk Alerts & Insights</h3>
+        {aiInsights?.map((alert, i) => {
+          const s = severityStyles[alert.type] || severityStyles.info;
           return (
             <motion.div
-              key={alert.title}
+              key={i}
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
@@ -82,7 +97,7 @@ export default function GoalsAlerts() {
             >
               <s.icon className={`h-5 w-5 mt-0.5 shrink-0 ${s.iconColor}`} />
               <div>
-                <p className="font-display font-semibold text-sm">{alert.title}</p>
+                <p className="font-display font-semibold text-sm">{alert.title || "Financial Insight"}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">{alert.message}</p>
               </div>
             </motion.div>

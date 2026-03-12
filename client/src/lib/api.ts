@@ -33,3 +33,25 @@ export const createTransaction = async (transaction: any) => {
   if (!response.ok) throw new Error('Failed to create transaction');
   return response.json();
 };
+
+export const fetchGoals = async () => {
+  const response = await fetch(`${API_BASE_URL}/goals`);
+  if (!response.ok) throw new Error('Failed to fetch goals');
+  return response.json();
+};
+
+export const createGoal = async (goal: any) => {
+  const response = await fetch(`${API_BASE_URL}/goals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(goal),
+  });
+  if (!response.ok) throw new Error('Failed to create goal');
+  return response.json();
+};
+
+export const fetchAIInsights = async () => {
+  const response = await fetch(`${API_BASE_URL}/coach/insights`);
+  if (!response.ok) throw new Error('Failed to fetch AI insights');
+  return response.json();
+};

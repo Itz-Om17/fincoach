@@ -3,14 +3,31 @@ import { StatCard } from "@/components/StatCard";
 import { InsightCard } from "@/components/InsightCard";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import { fetchDashboardStats, fetchDashboardCharts } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchDashboardStats, fetchDashboardCharts, fetchAIInsights, createGoal } from "@/lib/api";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
+import { useState } from "react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
+  const [isGoalOpen, setIsGoalOpen] = useState(false);
+  const [goalForm, setGoalForm] = useState({
+    name: "",
+    targetAmount: "",
+    deadline: "",
+    category: "Savings"
+  });
+
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: fetchDashboardStats
@@ -20,6 +37,39 @@ export default function Dashboard() {
     queryKey: ['dashboard-charts'],
     queryFn: fetchDashboardCharts
   });
+
+  const { data: aiInsights, isLoading: insightsLoading } = useQuery({
+    queryKey: ['ai-insights'],
+    queryFn: fetchAIInsights,
+    refetchInterval: 300000 // Refetch every 5 minutes
+  });
+
+  const goalMutation = useMutation({
+    mutationFn: createGoal,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success("Saving goal set successfully!");
+      setIsGoalOpen(false);
+      setGoalForm({ name: "", targetAmount: "", deadline: "", category: "Savings" });
+    },
+    onError: () => {
+      toast.error("Failed to set goal");
+    }
+  });
+
+  const handleGoalSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!goalForm.name || !goalForm.targetAmount || !goalForm.deadline) {
+      toast.error("Please fill all fields");
+      return;
+    }
+    goalMutation.mutate({
+      ...goalForm,
+      targetAmount: Number(goalForm.targetAmount),
+      currentAmount: 0,
+      status: 'active'
+    });
+  };
 
   if (statsLoading || chartsLoading) {
     return (
@@ -95,23 +145,97 @@ export default function Dashboard() {
       {/* Insights & Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-3">
-          <h3 className="font-display font-semibold text-sm">Quick Insights</h3>
-          <InsightCard message="You spent 20% more on food this week compared to last week." type="warning" />
-          <InsightCard message="Your savings increased by ₹2,000 this month. Great job! 🎉" type="success" />
-          <InsightCard message="You have 3 upcoming bill payments this week." type="info" />
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-display font-semibold text-sm">AI Financial Insights</h3>
+            {insightsLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+          {aiInsights && aiInsights.length > 0 ? (
+            aiInsights.map((insight: any, i: number) => (
+              <InsightCard key={i} title={insight.title} message={insight.message} type={insight.type} />
+            ))
+          ) : (
+            <>
+              <InsightCard message="You spent 20% more on food this week compared to last week." type="warning" />
+              <InsightCard message="Your savings increased by ₹2,000 this month. Great job! 🎉" type="success" />
+              <InsightCard message="You have 3 upcoming bill payments this week." type="info" />
+            </>
+          )}
         </div>
 
         <div className="space-y-3">
           <h3 className="font-display font-semibold text-sm">Quick Actions</h3>
-          <Button className="w-full justify-start gap-2 rounded-xl h-11" variant="outline">
-            <Plus className="h-4 w-4 text-success" /> Add Income
+          <Button className="w-full justify-start gap-2 rounded-xl h-11" variant="outline" asChild>
+            <a href="/transactions">
+              <Plus className="h-4 w-4 text-success" /> Add Income
+            </a>
           </Button>
-          <Button className="w-full justify-start gap-2 rounded-xl h-11" variant="outline">
-            <Plus className="h-4 w-4 text-destructive" /> Add Expense
+          <Button className="w-full justify-start gap-2 rounded-xl h-11" variant="outline" asChild>
+            <a href="/transactions">
+              <Plus className="h-4 w-4 text-destructive" /> Add Expense
+            </a>
           </Button>
-          <Button className="w-full justify-start gap-2 rounded-xl h-11 gradient-primary text-primary-foreground border-0">
-            <Target className="h-4 w-4" /> Set Saving Goal
-          </Button>
+          
+          <Dialog open={isGoalOpen} onOpenChange={setIsGoalOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full justify-start gap-2 rounded-xl h-11 gradient-primary text-primary-foreground border-0">
+                <Target className="h-4 w-4" /> Set Saving Goal
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="font-display">Set Saving Goal</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleGoalSubmit} className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Goal Name</Label>
+                  <Input 
+                    placeholder="e.g., Buy a new Laptop" 
+                    value={goalForm.name}
+                    onChange={(e) => setGoalForm({...goalForm, name: e.target.value})}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Target Amount (₹)</Label>
+                  <Input 
+                    type="number" 
+                    placeholder="50000" 
+                    value={goalForm.targetAmount}
+                    onChange={(e) => setGoalForm({...goalForm, targetAmount: e.target.value})}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Deadline</Label>
+                  <Input 
+                    type="date" 
+                    value={goalForm.deadline}
+                    onChange={(e) => setGoalForm({...goalForm, deadline: e.target.value})}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={goalForm.category} onValueChange={(v) => setGoalForm({...goalForm, category: v})}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Savings">Savings</SelectItem>
+                      <SelectItem value="Electronics">Electronics</SelectItem>
+                      <SelectItem value="Travel">Travel</SelectItem>
+                      <SelectItem value="Emergency">Emergency</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={goalMutation.isPending}
+                  className="w-full rounded-xl gradient-primary text-primary-foreground border-0"
+                >
+                  {goalMutation.isPending ? "Setting Goal..." : "Set Goal"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

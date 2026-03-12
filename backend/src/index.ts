@@ -5,6 +5,7 @@ import { connectDB } from './lib/db';
 import dashboardRouter from './routes/dashboard';
 import transactionsRouter from './routes/transactions';
 import coachRouter from './routes/coach';
+import goalsRouter from './routes/goals';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/coach', coachRouter);
+app.use('/api/goals', goalsRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
