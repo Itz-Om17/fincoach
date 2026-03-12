@@ -1,11 +1,11 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Plus, CreditCard, Smartphone, Banknote, Search, Filter, Loader2 } from "lucide-react";
+import { Plus, CreditCard, Smartphone, Banknote, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
-import { fetchTransactions } from "@/lib/api";
+import { fetchTransactions, createTransaction } from "@/lib/api";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -13,9 +13,10 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface Transaction {
-  id: number;
+  _id?: string;
   description: string;
   amount: number;
   type: "income" | "expense";
@@ -24,11 +25,11 @@ interface Transaction {
   method: string;
 }
 
-const methodIcon: Record<string, typeof CreditCard> = {
+const methodIcon: Record<string, any> = {
   "Credit Card": CreditCard,
   "UPI": Smartphone,
   "Bank Transfer": Banknote,
-  "Auto-Pay": CreditCard,
+  "Cash": Banknote,
 };
 
 const categoryColors: Record<string, string> = {
@@ -42,11 +43,55 @@ const categoryColors: Record<string, string> = {
 
 export default function Transactions() {
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
   
-  const { data: transactions, isLoading } = useQuery({
+  const [formData, setFormData] = useState({
+    type: "expense" as const,
+    description: "",
+    amount: "",
+    category: "",
+    method: "",
+    date: new Date().toISOString().split('T')[0]
+  });
+  
+  const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ['transactions'],
     queryFn: fetchTransactions
   });
+
+  const mutation = useMutation({
+    mutationFn: createTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success("Transaction added successfully");
+      setIsOpen(false);
+      setFormData({
+        type: "expense",
+        description: "",
+        amount: "",
+        category: "",
+        method: "",
+        date: new Date().toISOString().split('T')[0]
+      });
+    },
+    onError: () => {
+      toast.error("Failed to add transaction");
+    }
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.description || !formData.amount || !formData.category || !formData.method) {
+      toast.error("Please fill all fields");
+      return;
+    }
+    mutation.mutate({
+      ...formData,
+      amount: Number(formData.amount)
+    });
+  };
 
   if (isLoading) {
     return (
@@ -56,11 +101,11 @@ export default function Transactions() {
     );
   }
 
-  const filtered = transactions.filter(
+  const filtered = transactions?.filter(
     (t: Transaction) =>
       t.description.toLowerCase().includes(search.toLowerCase()) ||
       t.category.toLowerCase().includes(search.toLowerCase())
-  );
+  ) || [];
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -70,7 +115,7 @@ export default function Transactions() {
           <p className="text-muted-foreground text-sm mt-1">Track and manage your finances</p>
         </div>
         <div className="flex gap-2">
-          <Dialog>
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="rounded-xl gap-2 gradient-primary text-primary-foreground border-0">
                 <Plus className="h-4 w-4" /> Add Transaction
@@ -80,10 +125,10 @@ export default function Transactions() {
               <DialogHeader>
                 <DialogTitle className="font-display">Add Transaction</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 pt-2">
+              <form onSubmit={handleSubmit} className="space-y-4 pt-2">
                 <div className="space-y-2">
                   <Label>Type</Label>
-                  <Select defaultValue="expense">
+                  <Select value={formData.type} onValueChange={(v: "income" | "expense") => setFormData({...formData, type: v})}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="income">Income</SelectItem>
@@ -93,109 +138,104 @@ export default function Transactions() {
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
-                  <Input placeholder="e.g., Grocery shopping" className="rounded-xl" />
+                  <Input 
+                    placeholder="e.g., Grocery shopping" 
+                    className="rounded-xl" 
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Amount (₹)</Label>
-                  <Input type="number" placeholder="0" className="rounded-xl" />
+                  <Input 
+                    type="number" 
+                    placeholder="0" 
+                    className="rounded-xl" 
+                    value={formData.amount}
+                    onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Category</Label>
-                  <Select>
+                  <Select value={formData.category} onValueChange={(v) => setFormData({...formData, category: v})}>
                     <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select category" /></SelectTrigger>
                     <SelectContent>
                       {["Food", "Travel", "Bills", "Shopping", "Entertainment", "Income"].map((c) => (
-                        <SelectItem key={c} value={c.toLowerCase()}>{c}</SelectItem>
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Payment Method</Label>
-                  <Select>
+                  <Select value={formData.method} onValueChange={(v) => setFormData({...formData, method: v})}>
                     <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select method" /></SelectTrigger>
                     <SelectContent>
                       {["UPI", "Credit Card", "Bank Transfer", "Cash"].map((m) => (
-                        <SelectItem key={m} value={m.toLowerCase()}>{m}</SelectItem>
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full rounded-xl gradient-primary text-primary-foreground border-0">
-                  Add Transaction
+                <Button 
+                  type="submit" 
+                  disabled={mutation.isPending}
+                  className="w-full rounded-xl gradient-primary text-primary-foreground border-0"
+                >
+                  {mutation.isPending ? "Adding..." : "Add Transaction"}
                 </Button>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* Connect Bank Mock */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="gradient-card rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <p className="font-display font-semibold text-sm">Connect your bank account</p>
-          <p className="text-muted-foreground text-xs mt-0.5">Auto-import transactions from your bank or wallet</p>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search transactions..." 
+            className="pl-9 rounded-xl border-muted-foreground/20" 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-        <Button variant="outline" className="rounded-xl text-sm">Connect Bank</Button>
-      </motion.div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-10 rounded-xl"
-          placeholder="Search transactions..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
       </div>
 
-      {/* Table */}
-      <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-muted-foreground text-xs">
-                <th className="text-left p-4 font-medium">Description</th>
-                <th className="text-left p-4 font-medium">Category</th>
-                <th className="text-left p-4 font-medium hidden sm:table-cell">Date</th>
-                <th className="text-left p-4 font-medium hidden md:table-cell">Method</th>
-                <th className="text-right p-4 font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((t: Transaction, i: number) => {
-                const MethodIcon = methodIcon[t.method] || CreditCard;
-                return (
-                  <motion.tr
-                    key={t.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="p-4 font-medium">{t.description}</td>
-                    <td className="p-4">
-                      <Badge variant="secondary" className={`rounded-lg text-xs ${categoryColors[t.category] || ""}`}>
-                        {t.category}
-                      </Badge>
-                    </td>
-                    <td className="p-4 text-muted-foreground hidden sm:table-cell">{t.date}</td>
-                    <td className="p-4 hidden md:table-cell">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <MethodIcon className="h-3.5 w-3.5" />
-                        <span>{t.method}</span>
-                      </div>
-                    </td>
-                    <td className={`p-4 text-right font-display font-semibold ${t.type === "income" ? "text-success" : "text-foreground"}`}>
-                      {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString()}
-                    </td>
-                  </motion.tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="space-y-3">
+        {filtered.map((t: Transaction, i: number) => {
+          const Icon = methodIcon[t.method] || CreditCard;
+          return (
+            <motion.div
+              key={t._id || i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="flex items-center justify-between p-4 bg-card rounded-2xl border border-muted-foreground/5 shadow-card-sm hover:shadow-card transition-shadow"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-display font-semibold text-sm">{t.description}</h4>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground">{t.date}</span>
+                    <Badge variant="secondary" className={`text-[10px] h-4 px-1.5 font-medium rounded-full ${categoryColors[t.category] || "bg-muted text-muted-foreground"}`}>
+                      {t.category}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`font-display font-bold ${t.type === "income" ? "text-success" : "text-destructive"}`}>
+                  {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString()}
+                </span>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{t.method}</p>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );

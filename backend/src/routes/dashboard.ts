@@ -6,28 +6,37 @@ const router = Router();
 router.get('/stats', async (req, res) => {
   try {
     const transactions = await Transaction.find();
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     
-    let income = 0;
-    let expenses = 0;
+    let totalIncome = 0;
+    let dailyIncome = 0;
+    let totalExpenses = 0;
     
     transactions.forEach(t => {
-      if (t.type === 'income') income += t.amount;
-      else expenses += t.amount;
+      const isIncome = t.type === 'income';
+      const isToday = t.date === todayStr;
+
+      if (isIncome) {
+        totalIncome += t.amount;
+        if (isToday) dailyIncome += t.amount;
+      } else {
+        totalExpenses += t.amount;
+      }
     });
 
-    const balance = income - expenses;
-    const savings = balance; // Simple logic for now
+    const balance = totalIncome - totalExpenses;
 
     res.json({
       totalBalance: `₹${balance.toLocaleString()}`,
-      monthlyIncome: `₹${income.toLocaleString()}`,
-      monthlyExpenses: `₹${expenses.toLocaleString()}`,
-      savings: `₹${savings.toLocaleString()}`,
+      dailyIncome: `₹${dailyIncome.toLocaleString()}`,
+      monthlyIncome: `₹${totalIncome.toLocaleString()}`,
+      monthlyExpenses: `₹${totalExpenses.toLocaleString()}`,
       changes: {
         totalBalance: "Real-time from DB",
-        monthlyIncome: "Calculated from income",
-        monthlyExpenses: "Calculated from expenses",
-        savings: "Net balance",
+        dailyIncome: "Earned today",
+        monthlyIncome: "Total earned this month",
+        monthlyExpenses: "Total spent",
       }
     });
   } catch (error) {

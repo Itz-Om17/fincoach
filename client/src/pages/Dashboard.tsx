@@ -42,9 +42,9 @@ export default function Dashboard() {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Balance" value={statsData.totalBalance} change={statsData.changes.totalBalance} changeType="positive" icon={Wallet} gradient />
-        <StatCard title="Monthly Income" value={statsData.monthlyIncome} change={statsData.changes.monthlyIncome} changeType="positive" icon={TrendingUp} />
+        <StatCard title="Today's Income" value={statsData.dailyIncome} change={statsData.changes.dailyIncome} changeType="positive" icon={TrendingUp} />
         <StatCard title="Monthly Expenses" value={statsData.monthlyExpenses} change={statsData.changes.monthlyExpenses} changeType="negative" icon={TrendingDown} />
-        <StatCard title="Savings" value={statsData.savings} change={statsData.changes.savings} changeType="positive" icon={PiggyBank} />
+        <StatCard title="Cumulative Monthly Income" value={statsData.monthlyIncome} change={statsData.changes.monthlyIncome} changeType="positive" icon={PiggyBank} />
       </div>
 
       {/* Charts Row */}
