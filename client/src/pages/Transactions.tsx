@@ -43,13 +43,15 @@ const categoryColors: Record<string, string> = {
   Income: "bg-success/10 text-success",
 };
 
-function formatCurrency(n: number) {
-  return "₹" + n.toLocaleString("en-IN");
-}
+
 
 export default function Transactions() {
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
+
+  const formatCurrency = (n: number) => {
+    return "₹" + n.toLocaleString("en-IN");
+  };
   const [isOpen, setIsOpen] = useState(false);
   
   const [formData, setFormData] = useState({

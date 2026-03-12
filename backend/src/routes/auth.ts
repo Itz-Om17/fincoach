@@ -1,7 +1,8 @@
-import express from 'express';
+import express, { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
+import { auth, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -67,6 +68,45 @@ router.post('/signin', async (req, res) => {
         res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
       }
     );
+  } catch (err: any) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// GET current user
+router.get('/me', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findById(req.user?.id).select('-password');
+    res.json(user);
+  } catch (err: any) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// UPDATE user profile
+router.patch('/profile', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, email } = req.body;
+    const user = await User.findById(req.user?.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    await user.save();
+    
+    const sanitizedUser = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+    };
+    
+    res.json(sanitizedUser);
   } catch (err: any) {
     console.error(err.message);
     res.status(500).send('Server error');

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Bot, User, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, Trash2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchChatHistory, sendChatMessage, clearChatHistory } from "@/lib/api";
@@ -19,6 +19,11 @@ export default function AIChatbot() {
   const [input, setInput] = useState("");
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  /* ── Voice Status States ── */
+  const [isListening, setIsListening] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   const { data: history, isLoading } = useQuery<Message[]>({
     queryKey: ['chat-history'],
@@ -56,8 +61,77 @@ export default function AIChatbot() {
     }
   });
 
+  /* ── Voice Chat Logic (STT) ── */
   useEffect(() => {
-// ...
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-IN';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+        // Automatically send if transcript is substantial? 
+        // For now just set input for review
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+        toast.error(`Speech recognition error: ${event.error}`);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      if (!recognitionRef.current) {
+        toast.error("Speech recognition not supported in this browser");
+        return;
+      }
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error("Failed to start recognition", err);
+      }
+    }
+  };
+
+  /* ── Text to Speech Logic (TTS) ── */
+  const speakMessage = (content: string, id: string) => {
+    // Stop any current speech
+    window.speechSynthesis.cancel();
+    
+    if (speakingId === id) {
+      setSpeakingId(null);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(content);
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+    
+    setSpeakingId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel();
+    setSpeakingId(null);
+  };
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -125,23 +199,43 @@ export default function AIChatbot() {
                   }`}>
                     {msg.role === 'user' ? <User className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                   </div>
-                  <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card-sm ${
-                    msg.role === 'user' 
-                      ? 'bg-primary text-primary-foreground font-medium rounded-tr-none' 
-                      : 'bg-card border border-muted-foreground/10 text-foreground rounded-tl-none prose prose-sm dark:prose-invert max-w-none'
-                  }`}>
-                    {msg.role === 'user' ? (
-                      msg.content
-                    ) : (
-                      <ReactMarkdown 
-                        components={{
-                          a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold" />
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    )}
-                  </div>
+                    <div className="flex flex-col gap-2">
+                      <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card-sm ${
+                        msg.role === 'user' 
+                          ? 'bg-primary text-primary-foreground font-medium rounded-tr-none' 
+                          : 'bg-card border border-muted-foreground/10 text-foreground rounded-tl-none prose prose-sm dark:prose-invert max-w-none'
+                      }`}>
+                        {msg.role === 'user' ? (
+                          msg.content
+                        ) : (
+                          <ReactMarkdown 
+                            components={{
+                              a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold" />
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        )}
+                      </div>
+                      
+                      {/* Message Actions (TTS) */}
+                      {msg.role === 'assistant' && (
+                        <div className="flex justify-start">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-7 w-7 p-0 rounded-lg hover:bg-primary/5 transition-colors ${speakingId === (msg._id || i.toString()) ? 'text-primary' : 'text-muted-foreground'}`}
+                            onClick={() => speakMessage(msg.content, msg._id || i.toString())}
+                          >
+                            {speakingId === (msg._id || i.toString()) ? (
+                              <VolumeX className="h-3.5 w-3.5" />
+                            ) : (
+                              <Volume2 className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                 </div>
               </motion.div>
             ))}
@@ -167,21 +261,35 @@ export default function AIChatbot() {
 
       {/* Input */}
       <div className="p-4 bg-card/50 border-t border-muted-foreground/10">
-        <form onSubmit={handleSubmit} className="flex gap-2 relative">
+        <form onSubmit={handleSubmit} className="flex gap-2 relative group">
           <Input
-            placeholder="Ask anything about your savings, expenses or goals..."
+            placeholder={isListening ? "Listening..." : "Ask anything about your savings, expenses or goals..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={mutation.isPending}
-            className="rounded-2xl h-12 pl-4 pr-12 border-muted-foreground/20 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50"
+            className={`rounded-2xl h-12 pl-4 pr-24 border-muted-foreground/20 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 ${isListening ? 'ring-2 ring-primary/50' : ''}`}
           />
-          <Button 
-            type="submit" 
-            disabled={!input.trim() || mutation.isPending}
-            className="absolute right-1 top-1 h-10 w-10 rounded-xl gradient-primary border-0 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          <div className="absolute right-1 top-1 flex gap-1">
+            <Button 
+              type="button"
+              onClick={toggleListening}
+              disabled={mutation.isPending}
+              className={`h-10 w-10 b-0 rounded-xl transition-all shadow-lg ${
+                isListening 
+                  ? 'bg-destructive text-destructive-foreground animate-pulse' 
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={!input.trim() || mutation.isPending}
+              className="h-10 w-10 rounded-xl gradient-primary border-0 text-primary-foreground shadow-lg hover:shadow-primary/25 transition-all"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </form>
         <p className="text-[10px] text-center text-muted-foreground mt-3 uppercase tracking-tighter font-bold opacity-50">
           Powered by Groq AI • Your data is processed securely

@@ -210,3 +210,39 @@ export const saveBudgets = async (budgets: { category: string; limit: number }[]
   if (!response.ok) throw new Error('Failed to save budgets');
   return response.json();
 };
+
+export const fetchUnreadNotificationsCount = async () => {
+  const response = await fetch(`${API_BASE_URL}/coach/notifications/unread-count`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch unread count');
+  return response.json();
+};
+
+export const markNotificationsAsRead = async () => {
+  const response = await fetch(`${API_BASE_URL}/coach/notifications/mark-read`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to mark notifications as read');
+  return response.json();
+};
+
+export const fetchUserProfile = async () => {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch user profile');
+  return response.json();
+};
+
+export const updateUserProfile = async (userData: { name?: string; email?: string }) => {
+  const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(userData),
+  });
+  if (!response.ok) throw new Error('Failed to update profile');
+  return response.json();
+};
+

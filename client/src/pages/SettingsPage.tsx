@@ -5,8 +5,40 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchUserProfile, updateUserProfile } from "@/lib/api";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({ name: "", email: "" });
+
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['user-profile'],
+    queryFn: fetchUserProfile,
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({ name: user.name || "", email: user.email || "" });
+    }
+  }, [user]);
+
+  const updateProfileMutation = useMutation({
+    mutationFn: updateUserProfile,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['user-profile'], data);
+      toast.success("Profile updated successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to update profile");
+    }
+  });
+
+  const handleSave = () => {
+    updateProfileMutation.mutate(formData);
+  };
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -23,14 +55,28 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Full Name</Label>
-            <Input defaultValue="Ankit Kumar" className="rounded-xl" />
+            <Input 
+              value={formData.name} 
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="rounded-xl" 
+            />
           </div>
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input defaultValue="ankit@email.com" className="rounded-xl" />
+            <Input 
+              value={formData.email} 
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="rounded-xl" 
+            />
           </div>
         </div>
-        <Button className="rounded-xl gradient-primary text-primary-foreground border-0">Save Changes</Button>
+        <Button 
+          onClick={handleSave}
+          disabled={updateProfileMutation.isPending}
+          className="rounded-xl gradient-primary text-primary-foreground border-0"
+        >
+          {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+        </Button>
       </motion.div>
 
       {/* Notifications */}

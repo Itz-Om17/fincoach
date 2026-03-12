@@ -4,6 +4,7 @@ import Recommendation from '../models/Recommendation';
 import BudgetSuggestion from '../models/BudgetSuggestion';
 import Transaction from '../models/Transaction';
 import Goal from '../models/Goal';
+import Notification from '../models/Notification';
 import { generateInsights } from '../lib/aiService';
 import { generateAIRecommendations } from '../services/aiCoachEngine';
 import { auth, AuthRequest } from '../middleware/auth';
@@ -57,6 +58,26 @@ router.put('/budgets', auth, async (req: AuthRequest, res: Response) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Error saving budgets' });
+  }
+});
+
+// GET unread notifications count
+router.get('/notifications/unread-count', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    const count = await Notification.countDocuments({ userId: req.user?.id, read: false });
+    res.json({ count });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching unread count' });
+  }
+});
+
+// PATCH mark notifications as read
+router.patch('/notifications/mark-read', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    await Notification.updateMany({ userId: req.user?.id, read: false }, { read: true });
+    res.json({ message: 'Notifications marked as read' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error marking notifications as read' });
   }
 });
 
@@ -135,7 +156,21 @@ router.get('/insights', auth, async (req: AuthRequest, res: Response) => {
       dailyIncome
     });
 
-    res.json(insights);
+    // Persist new insights
+    if (Array.isArray(insights) && insights.length > 0) {
+      const newNotifications = insights.map((insight: any) => ({
+        userId: req.user?.id,
+        title: insight.title || 'Financial Alert',
+        message: insight.message,
+        type: insight.type || 'info',
+        read: false,
+        createdAt: new Date()
+      }));
+      await Notification.insertMany(newNotifications);
+    }
+
+    const allNotifications = await Notification.find({ userId: req.user?.id }).sort({ createdAt: -1 }).limit(10);
+    res.json(allNotifications);
   } catch (error) {
     res.status(500).json({ message: 'Error generating AI insights' });
   }

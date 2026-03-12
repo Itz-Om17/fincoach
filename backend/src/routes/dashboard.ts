@@ -83,6 +83,9 @@ router.get('/stats', auth, async (req: AuthRequest, res: Response) => {
     });
 
     // 2. Budget Alerts (Math-based, use real-time categoryTotals)
+    let budgetTotalItems = suggestions.length;
+    let budgetFollowed = 0;
+    
     suggestions.forEach(b => {
       const currentSpent = categoryTotals[b.category] || 0;
       if (currentSpent > b.target) {
@@ -91,14 +94,37 @@ router.get('/stats', auth, async (req: AuthRequest, res: Response) => {
           message: `You've spent ₹${(currentSpent - b.target).toLocaleString('en-IN')} more than your ₹${b.target.toLocaleString('en-IN')} limit.`,
           type: 'error'
         });
-      } else if (currentSpent > b.target * 0.9) {
+      } else {
+        budgetFollowed++;
+        if (currentSpent > b.target * 0.9) {
           alerts.push({
             title: `Near Budget Limit: ${b.category}`,
             message: `You've used ${Math.round((currentSpent/b.target)*100)}% of your ₹${b.target.toLocaleString('en-IN')} budget for ${b.category}.`,
             type: 'warning'
           });
+        }
       }
     });
+
+    // --- HEALTH SCORE CALCULATION ---
+    // 1. Savings Rate Score (50%)
+    let savingsRateScore = 0;
+    if (totalIncome > 0) {
+      const savingsRate = Math.max(0, (totalIncome - totalExpenses) / totalIncome);
+      savingsRateScore = Math.min(50, savingsRate * 50 * 2.5); // 40% savings gives full 50 pts
+    }
+
+    // 2. Budget Adherence (25%)
+    const budgetScore = budgetTotalItems > 0 ? (budgetFollowed / budgetTotalItems) * 25 : 25;
+
+    // 3. Goal Progress (25%)
+    let goalProgressSum = 0;
+    goals.forEach(g => {
+      goalProgressSum += Math.min(100, (g.currentAmount / g.targetAmount) * 100);
+    });
+    const goalScore = goals.length > 0 ? (goalProgressSum / (goals.length * 100)) * 25 : 25;
+
+    const healthScore = Math.round(savingsRateScore + budgetScore + goalScore);
 
     res.json({
       totalBalance: `₹${balance.toLocaleString('en-IN')}`,
@@ -115,8 +141,10 @@ router.get('/stats', auth, async (req: AuthRequest, res: Response) => {
         balance,
         dailyIncome,
         monthlyIncome: totalIncome,
-        monthlyExpenses: totalExpenses
+        monthlyExpenses: totalExpenses,
+        healthScore
       },
+      healthScore,
       alerts // New array of math-based alerts
     });
   } catch (error) {

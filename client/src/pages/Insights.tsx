@@ -22,7 +22,7 @@ const parseDate = (dStr: string) => {
 export default function Insights() {
   const { data: transactions = [], isLoading: isTxLoading } = useQuery({
     queryKey: ['transactions'],
-    queryFn: fetchTransactions
+    queryFn: () => fetchTransactions()
   });
 
   const { data: aiInsights, isLoading: isAILoading } = useQuery({
