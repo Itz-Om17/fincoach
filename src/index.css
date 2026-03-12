@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Grotesk:wght@300..700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 25% 97%;
+    --foreground: 230 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 12%;
+
+    --primary: 234 85% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 174 60% 46%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 225 20% 93%;
+    --muted-foreground: 225 10% 50%;
+
+    --accent: 270 60% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 38 92% 15%;
+
+    --success: 152 60% 44%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 225 15% 90%;
+    --input: 225 15% 90%;
+    --ring: 234 85% 60%;
+
+    --radius: 0.875rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 225 10% 50%;
+    --sidebar-primary: 234 85% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 234 85% 96%;
+    --sidebar-accent-foreground: 234 85% 50%;
+    --sidebar-border: 225 15% 93%;
+    --sidebar-ring: 234 85% 60%;
+
+    --chart-food: 0 72% 56%;
+    --chart-travel: 234 85% 60%;
+    --chart-bills: 38 92% 55%;
+    --chart-shopping: 270 60% 58%;
+    --chart-entertainment: 174 60% 46%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(234 85% 60%), hsl(270 60% 58%));
+    --gradient-card: linear-gradient(135deg, hsl(234 85% 96%), hsl(270 60% 96%));
+    --gradient-success: linear-gradient(135deg, hsl(152 60% 44%), hsl(174 60% 46%));
+
+    --shadow-card: 0 1px 3px 0 hsl(230 25% 12% / 0.04), 0 4px 16px -2px hsl(230 25% 12% / 0.06);
+    --shadow-card-hover: 0 4px 12px 0 hsl(230 25% 12% / 0.06), 0 8px 24px -4px hsl(230 25% 12% / 0.1);
+    --shadow-elevated: 0 8px 32px -4px hsl(234 85% 60% / 0.15);
+
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+}
+
+@layer utilities {
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .shadow-card-hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  .gradient-success {
+    background: var(--gradient-success);
+  }
+}
