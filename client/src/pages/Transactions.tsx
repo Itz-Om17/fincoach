@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, CreditCard, Smartphone, Banknote, Search, Filter } from "lucide-react";
+import { Plus, CreditCard, Smartphone, Banknote, Search, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTransactions } from "@/lib/api";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -22,17 +24,6 @@ interface Transaction {
   method: string;
 }
 
-const initialTransactions: Transaction[] = [
-  { id: 1, description: "Salary", amount: 65000, type: "income", category: "Income", date: "2026-03-01", method: "Bank Transfer" },
-  { id: 2, description: "Swiggy Order", amount: 450, type: "expense", category: "Food", date: "2026-03-10", method: "UPI" },
-  { id: 3, description: "Electricity Bill", amount: 1800, type: "expense", category: "Bills", date: "2026-03-08", method: "Auto-Pay" },
-  { id: 4, description: "Amazon Purchase", amount: 2300, type: "expense", category: "Shopping", date: "2026-03-07", method: "Credit Card" },
-  { id: 5, description: "Uber Ride", amount: 380, type: "expense", category: "Travel", date: "2026-03-06", method: "UPI" },
-  { id: 6, description: "Netflix", amount: 649, type: "expense", category: "Entertainment", date: "2026-03-05", method: "Credit Card" },
-  { id: 7, description: "Freelance Project", amount: 15000, type: "income", category: "Income", date: "2026-03-04", method: "Bank Transfer" },
-  { id: 8, description: "Groceries", amount: 2100, type: "expense", category: "Food", date: "2026-03-03", method: "UPI" },
-];
-
 const methodIcon: Record<string, typeof CreditCard> = {
   "Credit Card": CreditCard,
   "UPI": Smartphone,
@@ -50,11 +41,23 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function Transactions() {
-  const [transactions] = useState<Transaction[]>(initialTransactions);
   const [search, setSearch] = useState("");
+  
+  const { data: transactions, isLoading } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: fetchTransactions
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const filtered = transactions.filter(
-    (t) =>
+    (t: Transaction) =>
       t.description.toLowerCase().includes(search.toLowerCase()) ||
       t.category.toLowerCase().includes(search.toLowerCase())
   );
@@ -161,7 +164,7 @@ export default function Transactions() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t, i) => {
+              {filtered.map((t: Transaction, i: number) => {
                 const MethodIcon = methodIcon[t.method] || CreditCard;
                 return (
                   <motion.tr

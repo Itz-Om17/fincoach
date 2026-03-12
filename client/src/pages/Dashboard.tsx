@@ -1,32 +1,36 @@
-import { Wallet, TrendingUp, TrendingDown, PiggyBank, Plus, Target } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, PiggyBank, Plus, Target, Loader2 } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { InsightCard } from "@/components/InsightCard";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { fetchDashboardStats, fetchDashboardCharts } from "@/lib/api";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 
-const spendingByCategory = [
-  { name: "Food", value: 8500, color: "hsl(0, 72%, 56%)" },
-  { name: "Travel", value: 4200, color: "hsl(234, 85%, 60%)" },
-  { name: "Bills", value: 6800, color: "hsl(38, 92%, 55%)" },
-  { name: "Shopping", value: 3100, color: "hsl(270, 60%, 58%)" },
-  { name: "Entertainment", value: 2400, color: "hsl(174, 60%, 46%)" },
-];
-
-const weeklySpending = [
-  { day: "Mon", amount: 1200 },
-  { day: "Tue", amount: 800 },
-  { day: "Wed", amount: 1500 },
-  { day: "Thu", amount: 600 },
-  { day: "Fri", amount: 2200 },
-  { day: "Sat", amount: 3100 },
-  { day: "Sun", amount: 1800 },
-];
-
 export default function Dashboard() {
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: fetchDashboardStats
+  });
+
+  const { data: chartsData, isLoading: chartsLoading } = useQuery({
+    queryKey: ['dashboard-charts'],
+    queryFn: fetchDashboardCharts
+  });
+
+  if (statsLoading || chartsLoading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const { spendingByCategory, weeklySpending } = chartsData;
+
   return (
     <div className="space-y-6 max-w-6xl">
       {/* Greeting */}
@@ -37,10 +41,10 @@ export default function Dashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Balance" value="₹1,24,500" change="+2.4% from last month" changeType="positive" icon={Wallet} gradient />
-        <StatCard title="Monthly Income" value="₹65,000" change="Salary credited" changeType="positive" icon={TrendingUp} />
-        <StatCard title="Monthly Expenses" value="₹38,200" change="+8% vs last month" changeType="negative" icon={TrendingDown} />
-        <StatCard title="Savings" value="₹26,800" change="+₹2,000 this month" changeType="positive" icon={PiggyBank} />
+        <StatCard title="Total Balance" value={statsData.totalBalance} change={statsData.changes.totalBalance} changeType="positive" icon={Wallet} gradient />
+        <StatCard title="Monthly Income" value={statsData.monthlyIncome} change={statsData.changes.monthlyIncome} changeType="positive" icon={TrendingUp} />
+        <StatCard title="Monthly Expenses" value={statsData.monthlyExpenses} change={statsData.changes.monthlyExpenses} changeType="negative" icon={TrendingDown} />
+        <StatCard title="Savings" value={statsData.savings} change={statsData.changes.savings} changeType="positive" icon={PiggyBank} />
       </div>
 
       {/* Charts Row */}
@@ -52,14 +56,14 @@ export default function Dashboard() {
             <ResponsiveContainer width="50%" height={180}>
               <PieChart>
                 <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" strokeWidth={2} stroke="hsl(var(--card))">
-                  {spendingByCategory.map((entry, i) => (
+                  {spendingByCategory.map((entry: any, i: number) => (
                     <Cell key={i} fill={entry.color} />
                   ))}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-2.5">
-              {spendingByCategory.map((cat) => (
+              {spendingByCategory.map((cat: any) => (
                 <div key={cat.name} className="flex items-center gap-2 text-sm">
                   <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
                   <span className="text-muted-foreground">{cat.name}</span>

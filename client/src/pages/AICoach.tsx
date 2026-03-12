@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
-import { Bot, ArrowRight, CheckCircle2, Wallet } from "lucide-react";
+import { Bot, ArrowRight, CheckCircle2, Wallet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { fetchRecommendations } from "@/lib/api";
 
 interface Recommendation {
   title: string;
@@ -8,39 +10,6 @@ interface Recommendation {
   savings: string;
   priority: "high" | "medium" | "low";
 }
-
-const recommendations: Recommendation[] = [
-  {
-    title: "Reduce Food Delivery Spending",
-    description: "Reducing food delivery by ₹1,000 monthly can increase your yearly savings by ₹12,000.",
-    savings: "₹12,000/year",
-    priority: "high",
-  },
-  {
-    title: "Switch to Annual Subscriptions",
-    description: "Switching Netflix & Spotify to annual plans saves ~20% compared to monthly billing.",
-    savings: "₹1,800/year",
-    priority: "medium",
-  },
-  {
-    title: "Set Up Auto-Transfer to Savings",
-    description: "Automatically move ₹5,000 on salary day to your savings account for painless saving.",
-    savings: "₹60,000/year",
-    priority: "high",
-  },
-  {
-    title: "Review Unused Subscriptions",
-    description: "You have 2 subscriptions with no usage in the last 30 days. Consider cancelling.",
-    savings: "₹1,200/year",
-    priority: "low",
-  },
-  {
-    title: "Consolidate Short Cab Rides",
-    description: "Consider walking or using public transport for rides under 3 km to cut travel costs.",
-    savings: "₹4,500/year",
-    priority: "medium",
-  },
-];
 
 const priorityStyles = {
   high: "border-destructive/20 bg-destructive/5",
@@ -55,6 +24,19 @@ const priorityBadge = {
 };
 
 export default function AICoach() {
+  const { data: recommendations, isLoading } = useQuery({
+    queryKey: ['recommendations'],
+    queryFn: fetchRecommendations
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Hero */}
@@ -96,7 +78,7 @@ export default function AICoach() {
       {/* Recommendations */}
       <div className="space-y-3">
         <h3 className="font-display font-semibold text-sm">Recommendations</h3>
-        {recommendations.map((rec, i) => (
+        {recommendations.map((rec: Recommendation, i: number) => (
           <motion.div
             key={rec.title}
             initial={{ opacity: 0, y: 8 }}
