@@ -7,10 +7,25 @@ const router = Router();
 
 router.get('/', auth, async (req: AuthRequest, res: Response) => {
   try {
-    const transactions = await Transaction.find({ userId: req.user?.id }).sort({ date: -1 });
+    const { type, category } = req.query;
+    const filter: any = { userId: req.user?.id };
+
+    if (type) filter.type = type;
+    if (category) filter.category = category;
+
+    const transactions = await Transaction.find(filter).sort({ date: -1 });
     res.json(transactions);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching transactions' });
+  }
+});
+
+router.get('/categories', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    const categories = await Transaction.distinct('category', { userId: req.user?.id });
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching categories' });
   }
 });
 

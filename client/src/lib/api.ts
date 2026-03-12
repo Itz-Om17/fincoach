@@ -34,20 +34,28 @@ export const signup = async (userData: any) => {
   return response.json();
 };
 
-export const fetchDashboardStats = async () => {
-  const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error('Failed to fetch stats');
-  return response.json();
+export const fetchDashboardStats = async (month?: number, year?: number) => {
+  let url = `${API_BASE_URL}/dashboard/stats`;
+  const params = new URLSearchParams();
+  if (month !== undefined) params.append('month', month.toString());
+  if (year !== undefined) params.append('year', year.toString());
+  if (params.toString()) url += `?${params.toString()}`;
+
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch dashboard stats");
+  return res.json();
 };
 
-export const fetchDashboardCharts = async () => {
-  const response = await fetch(`${API_BASE_URL}/dashboard/charts`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error('Failed to fetch charts');
-  return response.json();
+export const fetchDashboardCharts = async (month?: number, year?: number) => {
+  let url = `${API_BASE_URL}/dashboard/charts`;
+  const params = new URLSearchParams();
+  if (month !== undefined) params.append('month', month.toString());
+  if (year !== undefined) params.append('year', year.toString());
+  if (params.toString()) url += `?${params.toString()}`;
+
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch dashboard charts");
+  return res.json();
 };
 
 export const fetchRecommendations = async () => {
@@ -58,11 +66,24 @@ export const fetchRecommendations = async () => {
   return response.json();
 };
 
-export const fetchTransactions = async () => {
-  const response = await fetch(`${API_BASE_URL}/transactions`, {
+export const fetchTransactions = async (type?: string, category?: string) => {
+  const params = new URLSearchParams();
+  if (type && type !== 'all') params.append('type', type);
+  if (category && category !== 'all') params.append('category', category);
+  
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/transactions${queryString}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch transactions');
+  return response.json();
+};
+
+export const fetchCategories = async () => {
+  const response = await fetch(`${API_BASE_URL}/transactions/categories`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch categories');
   return response.json();
 };
 
@@ -169,5 +190,23 @@ export const bulkCreateTransactions = async (transactions: any[]) => {
     body: JSON.stringify(transactions),
   });
   if (!response.ok) throw new Error('Failed to bulk create transactions');
+  return response.json();
+};
+
+export const fetchBudgets = async () => {
+  const response = await fetch(`${API_BASE_URL}/coach/budgets`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch budgets');
+  return response.json();
+};
+
+export const saveBudgets = async (budgets: { category: string; limit: number }[]) => {
+  const response = await fetch(`${API_BASE_URL}/coach/budgets`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(budgets),
+  });
+  if (!response.ok) throw new Error('Failed to save budgets');
   return response.json();
 };

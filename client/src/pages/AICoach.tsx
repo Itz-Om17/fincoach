@@ -53,7 +53,7 @@ export default function AICoach() {
   // Fetch dashboard stats for math-based alerts
   const { data: dashboardData } = useQuery<DashStats>({
     queryKey: ['dashboard-stats'],
-    queryFn: fetchDashboardStats
+    queryFn: () => fetchDashboardStats()
   });
 
   const mutation = useMutation({

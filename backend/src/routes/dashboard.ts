@@ -9,16 +9,19 @@ const router = Router();
 
 router.get('/stats', auth, async (req: AuthRequest, res: Response) => {
   try {
-    const transactions = await Transaction.find({ userId: req.user?.id });
+    const monthQuery = req.query.month as string;
+    const yearQuery = req.query.year as string;
+
     const now = new Date();
+    const currentMonth = monthQuery !== undefined ? parseInt(monthQuery, 10) : now.getMonth();
+    const currentYear = yearQuery !== undefined ? parseInt(yearQuery, 10) : now.getFullYear();
+
+    const transactions = await Transaction.find({ userId: req.user?.id });
     const todayStr = now.toISOString().split('T')[0];
     
     let totalIncome = 0;
     let dailyIncome = 0;
     let totalExpenses = 0;
-
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
 
     transactions.forEach(t => {
       const isIncome = t.type === 'income';
@@ -123,14 +126,17 @@ router.get('/stats', auth, async (req: AuthRequest, res: Response) => {
 
 router.get('/charts', auth, async (req: AuthRequest, res: Response) => {
   try {
+    const monthQuery = req.query.month as string;
+    const yearQuery = req.query.year as string;
+
+    const now = new Date();
+    const currentMonth = monthQuery !== undefined ? parseInt(monthQuery, 10) : now.getMonth();
+    const currentYear = yearQuery !== undefined ? parseInt(yearQuery, 10) : now.getFullYear();
+
     const transactions = await Transaction.find({ userId: req.user?.id });
     
     const categories: Record<string, number> = {};
     const weekly: Record<string, number> = { 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0 };
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
 
     transactions.forEach(t => {
       const tDate = new Date(t.date);

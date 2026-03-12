@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { fetchTransactions, createTransaction, bulkCreateTransactions } from "@/lib/api";
+import { fetchTransactions, createTransaction, bulkCreateTransactions, fetchCategories } from "@/lib/api";
 
 interface Transaction {
   _id?: string;
@@ -43,6 +43,10 @@ const categoryColors: Record<string, string> = {
   Income: "bg-success/10 text-success",
 };
 
+function formatCurrency(n: number) {
+  return "₹" + n.toLocaleString("en-IN");
+}
+
 export default function Transactions() {
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
@@ -56,16 +60,25 @@ export default function Transactions() {
     method: "",
     date: new Date().toISOString().split('T')[0]
   });
+
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
   
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: ['transactions'],
-    queryFn: fetchTransactions
+    queryKey: ['transactions', filterType, filterCategory],
+    queryFn: () => fetchTransactions(filterType, filterCategory)
+  });
+
+  const { data: dbCategories } = useQuery<string[]>({
+    queryKey: ['categories'],
+    queryFn: fetchCategories
   });
 
   const mutation = useMutation({
     mutationFn: createTransaction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast.success("Transaction added successfully");
       setIsOpen(false);
@@ -87,6 +100,7 @@ export default function Transactions() {
     mutationFn: bulkCreateTransactions,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast.success("Transactions imported successfully");
       setIsUploadOpen(false);
@@ -99,37 +113,77 @@ export default function Transactions() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const processImportedData = (data: any[]) => {
+    // Case-insensitive column lookup helper
+    const getCol = (row: any, ...keys: string[]) => {
+      for (const key of keys) {
+        // Try exact match first
+        if (row[key] !== undefined) return row[key];
+        // Then case-insensitive
+        const found = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase());
+        if (found) return row[found];
+      }
+      return undefined;
+    };
+
     const parsedData = data.map((row: any) => {
-      // Helper to parse date from DD-MM-YYYY or Excel serial to YYYY-MM-DD
-      const parseDate = (d: any) => {
+      // Robust date parser: handles Excel serials, Date objects, DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD
+      const parseDate = (d: any): string => {
         if (!d) return new Date().toISOString().split('T')[0];
-        
+
+        // Handle JS Date objects (XLSX may return these)
+        if (d instanceof Date) {
+          return d.toISOString().split('T')[0];
+        }
+
         // Handle Excel Date Serial Number
         if (typeof d === 'number') {
-           const excelEpoch = new Date(1899, 11, 30);
-           const dateObj = new Date(excelEpoch.getTime() + d * 86400000);
-           return dateObj.toISOString().split('T')[0];
+          const excelEpoch = new Date(1899, 11, 30);
+          const dateObj = new Date(excelEpoch.getTime() + d * 86400000);
+          return dateObj.toISOString().split('T')[0];
         }
 
-        const strDate = String(d);
-        const parts = strDate.split('-');
-        if (parts.length === 3) {
-          // Assuming DD-MM-YYYY format from the screenshot
-          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        const strDate = String(d).trim();
+
+        // DD-MM-YYYY or DD/MM/YYYY
+        const dmyMatch = strDate.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+        if (dmyMatch) {
+          const [, dd, mm, yyyy] = dmyMatch;
+          return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
         }
-        return strDate;
+
+        // YYYY-MM-DD (already correct format)
+        const ymdMatch = strDate.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (ymdMatch) {
+          const [, yyyy, mm, dd] = ymdMatch;
+          return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+        }
+
+        // Try native Date parsing as last resort
+        const parsed = new Date(strDate);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString().split('T')[0];
+        }
+
+        // Fallback to today
+        return new Date().toISOString().split('T')[0];
       };
+
+      const rawDate = getCol(row, 'Date', 'date', 'Transaction Date');
+      const rawDesc = getCol(row, 'Description', 'description', 'Desc', 'Narration');
+      const rawAmount = getCol(row, 'Amount (INR)', 'Amount', 'amount');
+      const rawType = getCol(row, 'Type', 'type', 'Transaction Type');
+      const rawCategory = getCol(row, 'Category', 'category');
+      const rawMethod = getCol(row, 'Payment Method', 'Method', 'Payment_Method', 'method');
 
       return {
-        description: row.Description || "Imported Transaction",
-        // Extract numbers only in case of formatting
-        amount: Number(String(row["Amount (INR)"] || row.Amount || 0).replace(/[^0-9.-]+/g,"")),
-        type: (row.Type || "expense").toLowerCase() as "income" | "expense",
-        category: row.Category || "Other",
-        date: parseDate(row.Date),
-        method: row["Payment Method"] || row.Method || "Cash"
+        description: rawDesc || "Imported Transaction",
+        amount: Number(String(rawAmount || 0).replace(/[^0-9.-]+/g, "")),
+        type: (String(rawType || "expense")).toLowerCase() as "income" | "expense",
+        category: rawCategory || "Other",
+        date: parseDate(rawDate),
+        method: rawMethod || "Cash"
       };
-    }).filter(t => t.amount !== 0); // Ignore pure empty rows
+    }).filter(t => t.amount !== 0);
 
     if (parsedData.length > 0) {
       bulkMutation.mutate(parsedData);
@@ -156,22 +210,22 @@ export default function Transactions() {
         }
       });
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-       const reader = new FileReader();
-       reader.onload = (evt) => {
-         try {
-           const bstr = evt.target?.result;
-           const wb = XLSX.read(bstr, { type: 'binary' });
-           const wsname = wb.SheetNames[0];
-           const ws = wb.Sheets[wsname];
-           const data = XLSX.utils.sheet_to_json(ws);
-           processImportedData(data);
-         } catch (error: any) {
-           toast.error(`Error parsing Excel file: ${error.message}`);
-         }
-       };
-       reader.readAsBinaryString(file);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'dd-mm-yyyy' });
+          processImportedData(data);
+        } catch (error: any) {
+          toast.error(`Error parsing Excel file: ${error.message}`);
+        }
+      };
+      reader.readAsBinaryString(file);
     } else {
-       toast.error("Unsupported file format. Please upload CSV or Excel.");
+      toast.error("Unsupported file format. Please upload CSV or Excel.");
     }
   };
 
@@ -200,6 +254,10 @@ export default function Transactions() {
       t.description.toLowerCase().includes(search.toLowerCase()) ||
       t.category.toLowerCase().includes(search.toLowerCase())
   ) || [];
+
+  const totalIncome = filtered.reduce((acc, t) => t.type === "income" ? acc + t.amount : acc, 0);
+  const totalExpenses = filtered.reduce((acc, t) => t.type === "expense" ? acc + t.amount : acc, 0);
+  const netTotal = totalIncome - totalExpenses;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -319,17 +377,63 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search transactions..." 
-            className="pl-9 rounded-xl border-muted-foreground/20" 
+            className="pl-9 rounded-xl border-muted-foreground/20 h-10" 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-full sm:w-[120px] rounded-xl h-10 border-muted-foreground/20">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="income">Income</SelectItem>
+              <SelectItem value="expense">Expense</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="w-full sm:w-[150px] rounded-xl h-10 border-muted-foreground/20">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
+              <SelectItem value="all">All Categories</SelectItem>
+              {dbCategories?.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
+      {/* Summary Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+      >
+        <div className="bg-card p-4 rounded-2xl border border-muted-foreground/5 shadow-card-sm">
+          <p className="text-xs text-muted-foreground mb-1">Filtered Income</p>
+          <p className="text-lg font-bold text-success">+{formatCurrency(totalIncome)}</p>
+        </div>
+        <div className="bg-card p-4 rounded-2xl border border-muted-foreground/5 shadow-card-sm">
+          <p className="text-xs text-muted-foreground mb-1">Filtered Expenses</p>
+          <p className="text-lg font-bold text-destructive">-{formatCurrency(totalExpenses)}</p>
+        </div>
+        <div className="bg-card p-4 rounded-2xl border border-muted-foreground/5 shadow-card-sm">
+          <p className="text-xs text-muted-foreground mb-1">Net Flow</p>
+          <p className={`text-lg font-bold ${netTotal >= 0 ? "text-primary" : "text-destructive"}`}>
+            {netTotal >= 0 ? "+" : ""}{formatCurrency(netTotal)}
+          </p>
+        </div>
+      </motion.div>
 
       <div className="space-y-3">
         {filtered.map((t: Transaction, i: number) => {

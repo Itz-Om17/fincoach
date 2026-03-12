@@ -20,6 +20,9 @@ import { toast } from "sonner";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [isGoalOpen, setIsGoalOpen] = useState(false);
   const [goalForm, setGoalForm] = useState({
     name: "",
@@ -29,13 +32,13 @@ export default function Dashboard() {
   });
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: fetchDashboardStats
+    queryKey: ['dashboard-stats', selectedMonth, selectedYear],
+    queryFn: () => fetchDashboardStats(selectedMonth, selectedYear)
   });
 
   const { data: chartsData, isLoading: chartsLoading } = useQuery({
-    queryKey: ['dashboard-charts'],
-    queryFn: fetchDashboardCharts
+    queryKey: ['dashboard-charts', selectedMonth, selectedYear],
+    queryFn: () => fetchDashboardCharts(selectedMonth, selectedYear)
   });
 
   const { data: aiInsights, isLoading: insightsLoading } = useQuery({
@@ -81,19 +84,46 @@ export default function Dashboard() {
 
   const { spendingByCategory, weeklySpending } = chartsData;
 
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const years = [2024, 2025, 2026, 2027];
+
   return (
     <div className="space-y-6 max-w-6xl">
-      {/* Greeting */}
-      <div className="flex items-center justify-between">
+      {/* Greeting and Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Good morning, Ankit 👋</h1>
-          <p className="text-muted-foreground text-sm mt-1">Here's your financial overview for today.</p>
+          <p className="text-muted-foreground text-sm mt-1">Here's your financial overview.</p>
         </div>
-        <Button variant="outline" size="sm" className="rounded-xl gap-2 h-9 border-primary/20 text-primary" asChild>
-          <a href="/coach">
-            <Bot className="h-4 w-4" /> Go to Coach
-          </a>
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
+            <SelectTrigger className="w-[120px] rounded-xl h-9 bg-card border-muted-foreground/20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
+              {months.map((m, i) => (
+                <SelectItem key={i} value={i.toString()}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+            <SelectTrigger className="w-[90px] rounded-xl h-9 bg-card border-muted-foreground/20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl">
+              {years.map((y) => (
+                <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button variant="outline" size="sm" className="rounded-xl gap-2 h-9 border-primary/20 text-primary" asChild>
+            <a href="/coach">
+              <Bot className="h-4 w-4" /> Coach
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* Priority Alerts (Critical Math-based alerts) */}

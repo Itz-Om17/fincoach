@@ -12,6 +12,54 @@ dotenv.config();
 
 const router = Router();
 
+// Default budget categories
+const DEFAULT_BUDGETS = [
+  { category: 'Food & Dining', limit: 5000 },
+  { category: 'Entertainment', limit: 3000 },
+  { category: 'Shopping', limit: 2500 },
+  { category: 'Transport', limit: 4000 },
+];
+
+// GET user budget limits (returns saved or defaults)
+router.get('/budgets', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    const saved = await BudgetSuggestion.find({ userId: req.user?.id });
+    if (saved.length > 0) {
+      const budgets = saved.map(b => ({ category: b.category, limit: b.target }));
+      return res.json(budgets);
+    }
+    // Return defaults if nothing saved yet
+    res.json(DEFAULT_BUDGETS);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching budgets' });
+  }
+});
+
+// PUT save/update user budget limits
+router.put('/budgets', auth, async (req: AuthRequest, res: Response) => {
+  try {
+    const budgets = req.body; // array of { category, limit }
+    if (!Array.isArray(budgets)) {
+      return res.status(400).json({ message: 'Budgets must be an array' });
+    }
+
+    // Upsert each budget
+    for (const b of budgets) {
+      await BudgetSuggestion.findOneAndUpdate(
+        { userId: req.user?.id, category: b.category },
+        { userId: req.user?.id, category: b.category, target: b.limit, current: 0 },
+        { upsert: true, new: true }
+      );
+    }
+
+    const saved = await BudgetSuggestion.find({ userId: req.user?.id });
+    const result = saved.map(b => ({ category: b.category, limit: b.target }));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Error saving budgets' });
+  }
+});
+
 // GET stored recommendations and budgets
 router.get('/recommendations', auth, async (req: AuthRequest, res: Response) => {
   try {
@@ -53,7 +101,8 @@ router.post('/recommendations/generate', auth, async (req: AuthRequest, res: Res
       budgets: savedBudgets
     });
   } catch (error: any) {
-    console.error('Groq Generation Error:', error);
+    console.error('Groq Generation Error:', error?.message || error);
+    console.error('Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     res.status(500).json({ message: 'Error generating AI data', error: error.message });
   }
 });

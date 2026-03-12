@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Target, AlertTriangle, ShieldAlert, ShieldCheck, Loader2, Plus, PiggyBank,
@@ -14,7 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchGoals, fetchAIInsights, createGoal, updateGoal, deleteGoal, fetchDashboardStats, fetchDashboardCharts } from "@/lib/api";
+import { fetchGoals, fetchAIInsights, createGoal, updateGoal, deleteGoal, fetchDashboardStats, fetchDashboardCharts, fetchBudgets, saveBudgets } from "@/lib/api";
+import { toast } from "sonner";
 
 /* ── Types ────────────────────────────────────────────────────────── */
 
@@ -40,10 +41,10 @@ interface BudgetCategory {
 }
 
 const budgetCategories: BudgetCategory[] = [
-  { name: "Food & Dining", icon: Utensils, limit: 5000, spent: 0, color: "hsl(0 72% 56%)" },
-  { name: "Entertainment", icon: Film, limit: 3000, spent: 0, color: "hsl(174 60% 46%)" },
-  { name: "Shopping", icon: ShoppingBag, limit: 2500, spent: 0, color: "hsl(270 60% 58%)" },
-  { name: "Transport", icon: Wallet, limit: 4000, spent: 0, color: "hsl(234 85% 60%)" },
+  { name: "Food & Dining", icon: Utensils, limit: 5000, spent: 0, color: "#ef4444" }, // Red-500
+  { name: "Entertainment", icon: Film, limit: 3000, spent: 0, color: "#06b6d4" }, // Cyan-500
+  { name: "Shopping", icon: ShoppingBag, limit: 2500, spent: 0, color: "#a855f7" }, // Purple-500
+  { name: "Transport", icon: Wallet, limit: 4000, spent: 0, color: "#6366f1" }, // Indigo-500
 ];
 
 interface RiskAlert {
@@ -112,12 +113,12 @@ const aiSeverityStyles: Record<string, any> = {
 /* ── Goal visual presets (color & gradient by index) ──────────────── */
 
 const goalPresets = [
-  { color: "hsl(152 60% 44%)", gradient: "from-emerald-500 to-teal-400", icon: ShieldCheck },
-  { color: "hsl(234 85% 60%)", gradient: "from-indigo-500 to-purple-500", icon: Rocket },
-  { color: "hsl(270 60% 58%)", gradient: "from-purple-500 to-pink-500", icon: Zap },
-  { color: "hsl(38 92% 55%)", gradient: "from-amber-500 to-orange-400", icon: TrendingUp },
-  { color: "hsl(190 80% 46%)", gradient: "from-cyan-500 to-blue-500", icon: Target },
-  { color: "hsl(340 75% 55%)", gradient: "from-pink-500 to-rose-500", icon: PiggyBank },
+  { color: "#10b981", gradient: "from-emerald-500 to-teal-400", icon: ShieldCheck }, // Emerald-500
+  { color: "#6366f1", gradient: "from-indigo-500 to-purple-500", icon: Rocket }, // Indigo-500
+  { color: "#a855f7", gradient: "from-purple-500 to-pink-500", icon: Zap }, // Purple-500
+  { color: "#f59e0b", gradient: "from-amber-500 to-orange-400", icon: TrendingUp }, // Amber-500
+  { color: "#06b6d4", gradient: "from-cyan-500 to-blue-500", icon: Target }, // Cyan-500
+  { color: "#ec4899", gradient: "from-pink-500 to-rose-500", icon: PiggyBank }, // Pink-500
 ];
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
@@ -316,9 +317,9 @@ function BudgetCard({ category, index }: { category: BudgetCategory; index: numb
           className="h-full rounded-full"
           style={{
             background: pct >= 90
-              ? "linear-gradient(90deg, hsl(0 72% 56%), hsl(0 72% 50%))"
+              ? "linear-gradient(90deg, #ef4444, #dc2626)" // Red 500 -> 600
               : pct >= 70
-                ? "linear-gradient(90deg, hsl(38 92% 55%), hsl(30 92% 50%))"
+                ? "linear-gradient(90deg, #f59e0b, #d97706)" // Amber 500 -> 600
                 : `linear-gradient(90deg, ${category.color}, ${category.color}cc)`
           }}
         />
@@ -381,14 +382,31 @@ export default function GoalsAlerts() {
     queryFn: fetchAIInsights,
   });
 
-  const { data: statsData, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: fetchDashboardStats,
+  const { data: statsData, isLoading: statsLoading } = useQuery<any>({
+    queryKey: ['dashboard-stats'],
+    queryFn: () => fetchDashboardStats()
   });
 
-  const { data: chartsData, isLoading: chartsLoading } = useQuery({
-    queryKey: ["dashboard-charts"],
-    queryFn: fetchDashboardCharts,
+  const { data: chartsData, isLoading: chartsLoading } = useQuery<any>({
+    queryKey: ['dashboard-charts'],
+    queryFn: () => fetchDashboardCharts()
+  });
+
+  const { data: savedBudgets, isLoading: budgetsLoading } = useQuery<any[]>({
+    queryKey: ['user-budgets'],
+    queryFn: fetchBudgets
+  });
+
+  const saveBudgetsMutation = useMutation({
+    mutationFn: saveBudgets,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-budgets'] });
+      toast.success('Budgets saved successfully!');
+      setBudgetDialogOpen(false);
+    },
+    onError: () => {
+      toast.error('Failed to save budgets');
+    }
   });
 
   /* ── Mutations ── */
@@ -439,6 +457,19 @@ export default function GoalsAlerts() {
     budgetCategories.map(c => ({ name: c.name, limit: c.limit }))
   );
 
+  // Sync budgets from DB when loaded
+  useEffect(() => {
+    if (savedBudgets && savedBudgets.length > 0) {
+      // Map saved budgets to the local state format
+      // Ensure we match by category name
+      const syncedBudgets = budgetCategories.map(cat => {
+        const saved = savedBudgets.find(b => b.category === cat.name);
+        return { name: cat.name, limit: saved ? saved.limit : cat.limit };
+      });
+      setBudgets(syncedBudgets);
+    }
+  }, [savedBudgets]);
+
   /* ── Handlers ── */
   function handleCreateGoal() {
     if (!newGoal.name || !newGoal.target) return;
@@ -481,7 +512,7 @@ export default function GoalsAlerts() {
   }
 
   /* ── Loading ── */
-  if (goalsLoading || insightsLoading || statsLoading || chartsLoading) {
+  if (goalsLoading || insightsLoading || statsLoading || chartsLoading || budgetsLoading) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -727,14 +758,16 @@ export default function GoalsAlerts() {
             <Button variant="outline" className="rounded-xl" onClick={() => setBudgetDialogOpen(false)}>Cancel</Button>
             <Button
               className="rounded-xl gradient-primary text-primary-foreground border-0"
+              disabled={saveBudgetsMutation.isPending}
               onClick={() => {
-                // Update local budget categories with new limits
-                budgets.forEach((b, i) => {
-                  budgetCategories[i].limit = b.limit;
-                });
-                setBudgetDialogOpen(false);
+                const updatedBudgets = budgets.map(b => ({
+                  category: b.name,
+                  limit: b.limit
+                }));
+                saveBudgetsMutation.mutate(updatedBudgets);
               }}
             >
+              {saveBudgetsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save Budgets
             </Button>
           </DialogFooter>

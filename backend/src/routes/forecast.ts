@@ -13,31 +13,41 @@ router.get('/', auth, async (req: AuthRequest, res: Response) => {
   try {
     const transactions = await Transaction.find({ userId: req.user?.id }).sort({ date: -1 });
     
-    // 1. Calculate historical metrics (last 30 days vs 30-60 days ago)
+    // 1. Calculate current calendar month and previous calendar month
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    const sixtyDaysAgo = new Date(now.getTime() - (60 * 24 * 60 * 60 * 1000));
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-    const recentTx = transactions.filter(t => new Date(t.date) >= thirtyDaysAgo);
-    const previousTx = transactions.filter(t => new Date(t.date) >= sixtyDaysAgo && new Date(t.date) < thirtyDaysAgo);
+    const recentTx = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const previousTx = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
+    });
 
-    const calcTotal = (txs: any[]) => txs.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : 0), 0);
-    const currentTotal = calcTotal(recentTx);
-    const previousTotal = calcTotal(previousTx);
+    const calcExpense = (txs: any[]) => txs.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : 0), 0);
+    const calcIncome = (txs: any[]) => txs.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : 0), 0);
 
-    // 2. Simple Projection Logic
-    // If no previous data, assume current continues. Otherwise, use growth rate with a cap.
-    let growthRate = previousTotal > 0 ? (currentTotal - previousTotal) / previousTotal : 0;
-    // Cap growth rate at 50% to avoid wild fluctuations
+    const currentExpense = calcExpense(recentTx);
+    const currentIncome = calcIncome(recentTx);
+    const previousExpense = calcExpense(previousTx);
+    const previousIncome = calcIncome(previousTx);
+
+    // 2. Projection based on current vs previous month
+    let growthRate = previousExpense > 0 ? (currentExpense - previousExpense) / previousExpense : 0;
     growthRate = Math.min(Math.max(growthRate, -0.5), 0.5);
     
-    const projectedExpense = Math.round(currentTotal * (1 + (growthRate * 0.5))); // Dampen the projection
+    const projectedExpense = Math.round(currentExpense * (1 + (growthRate * 0.5)));
 
-    // 3. Category Projections
-    const categories = Array.from(new Set(transactions.map(t => t.category)));
+    // 3. Category Projections (current month only)
+    const categories = Array.from(new Set(recentTx.filter(t => t.type === 'expense').map(t => t.category)));
     const categoryProjections = categories.map(cat => {
-        const catRecent = recentTx.filter(t => t.category === cat);
-        const catTotal = calcTotal(catRecent);
+        const catRecent = recentTx.filter(t => t.category === cat && t.type === 'expense');
+        const catTotal = catRecent.reduce((sum, t) => sum + t.amount, 0);
         return {
             category: cat,
             projected: Math.round(catTotal * (1 + (growthRate * 0.3))),
@@ -45,13 +55,16 @@ router.get('/', auth, async (req: AuthRequest, res: Response) => {
         };
     }).sort((a, b) => b.projected - a.projected).slice(0, 5);
 
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
     // 4. AI Summary
     const prompt = `
       You are a financial forecaster. Analyze these stats and provide a 2-sentence outlook for next month.
-      - Expenses last 30 days: ₹${currentTotal}
-      - Expenses 30-60 days ago: ₹${previousTotal}
-      - Projected expenses next 30 days: ₹${projectedExpense}
-      - Top projected categories: ${categoryProjections.map(c => c.category).join(', ')}
+      - Current month (${monthNames[currentMonth]}) expenses: ₹${currentExpense}
+      - Current month (${monthNames[currentMonth]}) income: ₹${currentIncome}
+      - Previous month (${monthNames[prevMonth]}) expenses: ₹${previousExpense}
+      - Projected expenses next month: ₹${projectedExpense}
+      - Top spending categories: ${categoryProjections.map(c => c.category).join(', ')}
       
       Requirements: 
       - Be objective but helpful. 
@@ -68,11 +81,16 @@ router.get('/', auth, async (req: AuthRequest, res: Response) => {
     const summary = JSON.parse(aiRes.choices[0]?.message?.content || '{"summary": "Could not generate outlook."}').summary;
 
     res.json({
-        currentMonthlyExpense: currentTotal,
+        currentMonthlyExpense: currentExpense,
+        currentMonthlyIncome: currentIncome,
+        previousMonthExpense: previousExpense,
+        previousMonthIncome: previousIncome,
         projectedNextMonth: projectedExpense,
         growthRate: Math.round(growthRate * 100),
         categoryProjections,
-        summary
+        summary,
+        currentMonthName: monthNames[currentMonth],
+        previousMonthName: monthNames[prevMonth]
     });
 
   } catch (error) {
