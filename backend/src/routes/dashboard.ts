@@ -1,13 +1,15 @@
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import Transaction from '../models/Transaction';
 import Goal from '../models/Goal';
 import BudgetSuggestion from '../models/BudgetSuggestion';
+import { auth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/stats', async (req, res) => {
+router.get('/stats', auth, async (req: AuthRequest, res: Response) => {
   try {
-    const transactions = await Transaction.find();
+    const transactions = await Transaction.find({ userId: req.user?.id });
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     
@@ -41,14 +43,14 @@ router.get('/stats', async (req, res) => {
     });
     
     // Total Balance should also subtract goal savings
-    const goalsData = await Goal.find();
+    const goalsData = await Goal.find({ userId: req.user?.id });
     const totalGoalSavings = goalsData.reduce((sum, g) => sum + g.currentAmount, 0);
     const balance = allTimeBalance - totalGoalSavings;
 
     // --- MATH-BASED ALERTS LOGIC ---
     const alerts: any[] = [];
-    const goals = await Goal.find();
-    const suggestions = await BudgetSuggestion.find();
+    const goals = await Goal.find({ userId: req.user?.id });
+    const suggestions = await BudgetSuggestion.find({ userId: req.user?.id });
 
     // Aggregate real-time spending for budget matching
     const categoryTotals: Record<string, number> = {};
@@ -119,9 +121,9 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-router.get('/charts', async (req, res) => {
+router.get('/charts', auth, async (req: AuthRequest, res: Response) => {
   try {
-    const transactions = await Transaction.find();
+    const transactions = await Transaction.find({ userId: req.user?.id });
     
     const categories: Record<string, number> = {};
     const weekly: Record<string, number> = { 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0 };

@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import Transaction from '../models/Transaction';
+import { auth, AuthRequest } from '../middleware/auth';
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -7,9 +9,9 @@ dotenv.config();
 const router = Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-router.get('/', async (req, res) => {
+router.get('/', auth, async (req: AuthRequest, res: Response) => {
   try {
-    const transactions = await Transaction.find().sort({ date: -1 });
+    const transactions = await Transaction.find({ userId: req.user?.id }).sort({ date: -1 });
     
     // 1. Calculate historical metrics (last 30 days vs 30-60 days ago)
     const now = new Date();

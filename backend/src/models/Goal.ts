@@ -7,6 +7,7 @@ export interface IGoal extends Document {
   deadline: string;
   category: string;
   status: 'active' | 'completed' | 'failed';
+  userId: mongoose.Types.ObjectId;
 }
 
 const GoalSchema: Schema = new Schema({
@@ -16,6 +17,7 @@ const GoalSchema: Schema = new Schema({
   deadline: { type: String, required: true },
   category: { type: String, required: true },
   status: { type: String, enum: ['active', 'completed', 'failed'], default: 'active' },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
 export default mongoose.model<IGoal>('Goal', GoalSchema);

@@ -5,6 +5,7 @@ export interface IRecommendation extends Document {
   description: string;
   savings: string;
   priority: 'high' | 'medium' | 'low';
+  userId: mongoose.Types.ObjectId;
 }
 
 const RecommendationSchema: Schema = new Schema({
@@ -12,6 +13,7 @@ const RecommendationSchema: Schema = new Schema({
   description: { type: String, required: true },
   savings: { type: String, required: true },
   priority: { type: String, enum: ['high', 'medium', 'low'], required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
 export default mongoose.model<IRecommendation>('Recommendation', RecommendationSchema);

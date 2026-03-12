@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { fetchTransactions, createTransaction, bulkCreateTransactions } from "@/lib/api";
 
 interface Transaction {
@@ -97,48 +98,81 @@ export default function Transactions() {
 
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
+  const processImportedData = (data: any[]) => {
+    const parsedData = data.map((row: any) => {
+      // Helper to parse date from DD-MM-YYYY or Excel serial to YYYY-MM-DD
+      const parseDate = (d: any) => {
+        if (!d) return new Date().toISOString().split('T')[0];
+        
+        // Handle Excel Date Serial Number
+        if (typeof d === 'number') {
+           const excelEpoch = new Date(1899, 11, 30);
+           const dateObj = new Date(excelEpoch.getTime() + d * 86400000);
+           return dateObj.toISOString().split('T')[0];
+        }
+
+        const strDate = String(d);
+        const parts = strDate.split('-');
+        if (parts.length === 3) {
+          // Assuming DD-MM-YYYY format from the screenshot
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return strDate;
+      };
+
+      return {
+        description: row.Description || "Imported Transaction",
+        // Extract numbers only in case of formatting
+        amount: Number(String(row["Amount (INR)"] || row.Amount || 0).replace(/[^0-9.-]+/g,"")),
+        type: (row.Type || "expense").toLowerCase() as "income" | "expense",
+        category: row.Category || "Other",
+        date: parseDate(row.Date),
+        method: row["Payment Method"] || row.Method || "Cash"
+      };
+    }).filter(t => t.amount !== 0); // Ignore pure empty rows
+
+    if (parsedData.length > 0) {
+      bulkMutation.mutate(parsedData);
+    } else {
+      toast.error("No valid data found in file");
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const parsedData = results.data.map((row: any) => {
-          // Mapping based on the image columns: Date, Description, Category, Amount (INR), Payment Method, Type
-          // Schema expects: description, amount, type, category, date, method
-          
-          // Helper to parse date from DD-MM-YYYY to YYYY-MM-DD
-          const parseDate = (d: string) => {
-            if (!d) return new Date().toISOString().split('T')[0];
-            const parts = d.split('-');
-            if (parts.length === 3) {
-              return `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
-            return d;
-          };
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
 
-          return {
-            description: row.Description || "Imported Transaction",
-            amount: Number(row["Amount (INR)"] || row.Amount || 0),
-            type: (row.Type || "expense").toLowerCase() as "income" | "expense",
-            category: row.Category || "Other",
-            date: parseDate(row.Date),
-            method: row["Payment Method"] || row.Method || "Cash"
-          };
-        });
-
-        if (parsedData.length > 0) {
-          bulkMutation.mutate(parsedData);
-        } else {
-          toast.error("No valid data found in CSV");
+    if (fileExtension === 'csv') {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          processImportedData(results.data);
+        },
+        error: (error) => {
+          toast.error(`Error parsing CSV: ${error.message}`);
         }
-      },
-      error: (error) => {
-        toast.error(`Error parsing CSV: ${error.message}`);
-      }
-    });
+      });
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+       const reader = new FileReader();
+       reader.onload = (evt) => {
+         try {
+           const bstr = evt.target?.result;
+           const wb = XLSX.read(bstr, { type: 'binary' });
+           const wsname = wb.SheetNames[0];
+           const ws = wb.Sheets[wsname];
+           const data = XLSX.utils.sheet_to_json(ws);
+           processImportedData(data);
+         } catch (error: any) {
+           toast.error(`Error parsing Excel file: ${error.message}`);
+         }
+       };
+       reader.readAsBinaryString(file);
+    } else {
+       toast.error("Unsupported file format. Please upload CSV or Excel.");
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -262,7 +296,7 @@ export default function Transactions() {
                 <div className="border-2 border-dashed border-muted-foreground/20 rounded-2xl p-8 hover:border-primary/50 transition-colors">
                   <Input 
                     type="file" 
-                    accept=".csv" 
+                    accept=".csv, .xlsx, .xls" 
                     onChange={handleFileUpload}
                     className="hidden" 
                     id="csv-upload" 

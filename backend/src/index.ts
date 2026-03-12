@@ -8,6 +8,7 @@ import coachRouter from './routes/coach';
 import goalsRouter from './routes/goals';
 import chatRouter from './routes/chat';
 import forecastRouter from './routes/forecast';
+import authRouter from './routes/auth';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use('/api/coach', coachRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/forecast', forecastRouter);
+app.use('/api/auth', authRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
