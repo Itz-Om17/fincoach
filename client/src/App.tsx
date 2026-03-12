@@ -8,7 +8,9 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Insights from "./pages/Insights";
 import AICoach from "./pages/AICoach";
+import AIChatbot from "./pages/AIChatbot";
 import GoalsAlerts from "./pages/GoalsAlerts";
+import Forecast from "./pages/Forecast";
 import Notifications from "./pages/Notifications";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
@@ -27,6 +29,8 @@ const App = () => (
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/insights" element={<Insights />} />
             <Route path="/coach" element={<AICoach />} />
+            <Route path="/chatbot" element={<AIChatbot />} />
+            <Route path="/forecast" element={<Forecast />} />
             <Route path="/goals" element={<GoalsAlerts />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/settings" element={<SettingsPage />} />

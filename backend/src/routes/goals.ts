@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Goal from '../models/Goal';
+import Transaction from '../models/Transaction';
 
 const router = Router();
 
@@ -31,6 +32,34 @@ router.patch('/:id', async (req, res) => {
     res.json(goal);
   } catch (error) {
     res.status(400).json({ message: 'Error updating goal' });
+  }
+});
+
+// Delete a goal — returns saved amount back to balance as an income transaction
+router.delete('/:id', async (req, res) => {
+  try {
+    const goal = await Goal.findById(req.params.id);
+    if (!goal) {
+      return res.status(404).json({ message: 'Goal not found' });
+    }
+
+    // If the goal had any saved amount, create an income transaction to return it
+    if (goal.currentAmount > 0) {
+      const returnTransaction = new Transaction({
+        description: `Goal cancelled: ${goal.name} — savings returned`,
+        amount: goal.currentAmount,
+        type: 'income',
+        category: 'Income',
+        date: new Date().toISOString().split('T')[0],
+        method: 'Internal Transfer',
+      });
+      await returnTransaction.save();
+    }
+
+    await Goal.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Goal deleted', returnedAmount: goal.currentAmount });
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting goal' });
   }
 });
 

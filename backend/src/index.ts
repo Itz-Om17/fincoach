@@ -6,6 +6,8 @@ import dashboardRouter from './routes/dashboard';
 import transactionsRouter from './routes/transactions';
 import coachRouter from './routes/coach';
 import goalsRouter from './routes/goals';
+import chatRouter from './routes/chat';
+import forecastRouter from './routes/forecast';
 
 dotenv.config();
 
@@ -22,6 +24,8 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/coach', coachRouter);
 app.use('/api/goals', goalsRouter);
+app.use('/api/chat', chatRouter);
+app.use('/api/forecast', forecastRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

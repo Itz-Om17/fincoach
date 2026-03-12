@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, TrendingDown, PiggyBank, Plus, Target, Loader2 } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, PiggyBank, Plus, Target, Loader2, Bot } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { InsightCard } from "@/components/InsightCard";
 import { Button } from "@/components/ui/button";
@@ -84,10 +84,39 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-6xl">
       {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Good morning, Ankit 👋</h1>
-        <p className="text-muted-foreground text-sm mt-1">Here's your financial overview for today.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Good morning, Ankit 👋</h1>
+          <p className="text-muted-foreground text-sm mt-1">Here's your financial overview for today.</p>
+        </div>
+        <Button variant="outline" size="sm" className="rounded-xl gap-2 h-9 border-primary/20 text-primary" asChild>
+          <a href="/coach">
+            <Bot className="h-4 w-4" /> Go to Coach
+          </a>
+        </Button>
       </div>
+
+      {/* Priority Alerts (Critical Math-based alerts) */}
+      {statsData?.alerts?.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+          <div className="grid gap-3">
+            {statsData.alerts.map((alert: any, idx: number) => (
+              <div 
+                key={idx} 
+                className={`p-4 rounded-2xl border flex items-start gap-3 shadow-sm ${
+                  alert.type === 'error' ? 'bg-destructive/5 border-destructive/20 text-destructive' : 'bg-warning/5 border-warning/20 text-warning-foreground'
+                }`}
+              >
+                <Target className="h-5 w-5 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold text-sm">{alert.title}</p>
+                  <p className="text-xs mt-0.5 opacity-90">{alert.message}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -134,7 +163,7 @@ export default function Dashboard() {
               <YAxis tickLine={false} axisLine={false} className="text-xs" tickFormatter={(v) => `₹${v}`} />
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-card)" }}
-                formatter={(value: number) => [`₹${value.toLocaleString()}`, "Spent"]}
+                formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, "Spent"]}
               />
               <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
             </BarChart>

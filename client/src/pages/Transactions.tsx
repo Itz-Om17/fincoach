@@ -5,7 +5,6 @@ import { Plus, CreditCard, Smartphone, Banknote, Search, Loader2 } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { fetchTransactions, createTransaction } from "@/lib/api";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -14,6 +13,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import Papa from "papaparse";
+import { fetchTransactions, createTransaction, bulkCreateTransactions } from "@/lib/api";
 
 interface Transaction {
   _id?: string;
@@ -47,7 +48,7 @@ export default function Transactions() {
   const [isOpen, setIsOpen] = useState(false);
   
   const [formData, setFormData] = useState({
-    type: "expense" as const,
+    type: "expense" as "income" | "expense",
     description: "",
     amount: "",
     category: "",
@@ -80,6 +81,65 @@ export default function Transactions() {
       toast.error("Failed to add transaction");
     }
   });
+
+  const bulkMutation = useMutation({
+    mutationFn: bulkCreateTransactions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success("Transactions imported successfully");
+      setIsUploadOpen(false);
+    },
+    onError: () => {
+      toast.error("Failed to import transactions");
+    }
+  });
+
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const parsedData = results.data.map((row: any) => {
+          // Mapping based on the image columns: Date, Description, Category, Amount (INR), Payment Method, Type
+          // Schema expects: description, amount, type, category, date, method
+          
+          // Helper to parse date from DD-MM-YYYY to YYYY-MM-DD
+          const parseDate = (d: string) => {
+            if (!d) return new Date().toISOString().split('T')[0];
+            const parts = d.split('-');
+            if (parts.length === 3) {
+              return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            return d;
+          };
+
+          return {
+            description: row.Description || "Imported Transaction",
+            amount: Number(row["Amount (INR)"] || row.Amount || 0),
+            type: (row.Type || "expense").toLowerCase() as "income" | "expense",
+            category: row.Category || "Other",
+            date: parseDate(row.Date),
+            method: row["Payment Method"] || row.Method || "Cash"
+          };
+        });
+
+        if (parsedData.length > 0) {
+          bulkMutation.mutate(parsedData);
+        } else {
+          toast.error("No valid data found in CSV");
+        }
+      },
+      error: (error) => {
+        toast.error(`Error parsing CSV: ${error.message}`);
+      }
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,6 +247,41 @@ export default function Transactions() {
               </form>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="rounded-xl gap-2 border-primary/20 text-primary hover:bg-primary/5">
+                Upload CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="font-display">Upload Transactions</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4 text-center">
+                <div className="border-2 border-dashed border-muted-foreground/20 rounded-2xl p-8 hover:border-primary/50 transition-colors">
+                  <Input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleFileUpload}
+                    className="hidden" 
+                    id="csv-upload" 
+                  />
+                  <label htmlFor="csv-upload" className="cursor-pointer space-y-2 block">
+                    <CreditCard className="h-8 w-8 mx-auto text-muted-foreground" />
+                    <p className="text-sm font-medium">Click to upload or drag and drop</p>
+                    <p className="text-xs text-muted-foreground italic">Target Columns: Date, Description, Category, Amount (INR), Payment Method, Type</p>
+                  </label>
+                </div>
+                {bulkMutation.isPending && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Importing transactions...
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -229,7 +324,7 @@ export default function Transactions() {
               </div>
               <div className="text-right">
                 <span className={`font-display font-bold ${t.type === "income" ? "text-success" : "text-destructive"}`}>
-                  {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString()}
+                  {t.type === "income" ? "+" : "-"}₹{t.amount.toLocaleString('en-IN')}
                 </span>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{t.method}</p>
               </div>

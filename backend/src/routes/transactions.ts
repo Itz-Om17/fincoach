@@ -12,6 +12,19 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.post('/bulk', async (req, res) => {
+  try {
+    const transactions = req.body;
+    if (!Array.isArray(transactions)) {
+        return res.status(400).json({ message: 'Payload must be an array of transactions' });
+    }
+    const savedTransactions = await Transaction.insertMany(transactions);
+    res.status(201).json(savedTransactions);
+  } catch (error) {
+    res.status(400).json({ message: 'Error bulk saving transactions' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const newTransaction = new Transaction(req.body);

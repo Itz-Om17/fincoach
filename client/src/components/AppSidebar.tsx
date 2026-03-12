@@ -7,6 +7,8 @@ import {
   Bell,
   Settings,
   Wallet,
+  MessageSquare,
+  LineChart,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -27,6 +29,8 @@ const navItems = [
   { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
   { title: "Insights", url: "/insights", icon: Lightbulb },
   { title: "AI Coach", url: "/coach", icon: Bot },
+  { title: "AI Chatbot", url: "/chatbot", icon: MessageSquare },
+  { title: "Forecast", url: "/forecast", icon: LineChart },
   { title: "Goals & Alerts", url: "/goals", icon: Target },
   { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Settings", url: "/settings", icon: Settings },
